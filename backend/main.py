@@ -1,18 +1,8 @@
 import os
-
-# Bloque de arranque para Render y ejecución local
-if __name__ == "__main__":
-    import uvicorn
-    try:
-        port = int(os.environ.get("PORT", 10000))
-        uvicorn.run("backend.main:app", host="0.0.0.0", port=port)
-    except Exception as e:
-        import traceback
-        print("ERROR AL INICIAR UVICORN O CONECTAR A LA BASE DE DATOS")
-        traceback.print_exc()
-        raise
 from datetime import date, time, datetime, timedelta
 from typing import Optional
+import uuid
+import logging
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -25,8 +15,10 @@ from passlib.context import CryptContext
 from .db import SessionLocal, Base, engine
 from .models import Paciente, Usuario, Area, Cita, Atencion, Historial, Referencia, Trabajador
 from .project_scope import PROJECT_PYTHON_SCOPE, ROLES_VALIDOS
-import uuid
-import logging
+
+# Bloque de arranque para Render y ejecución local
+
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("hospital_api")
@@ -597,30 +589,38 @@ async def registrar_usuario_personal(data: TrabajadorUserRegister, user=Depends(
             "trabajador_id": str(trabajador.id),
         }
 
+
 @app.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    async with SessionLocal() as session:
-        validate_required_text(form_data.username, "username")
-        validate_required_text(form_data.password, "password")
+    try:
+        async with SessionLocal() as session:
+            validate_required_text(form_data.username, "username")
+            validate_required_text(form_data.password, "password")
 
-        result = await session.execute(select(Usuario).where(
-            Usuario.email == form_data.username,
-            Usuario.activo == True
-        ))
-        usuario = result.scalar_one_or_none()
-        if not usuario or not pwd_context.verify(form_data.password, usuario.password_hash):
-            raise HTTPException(status_code=401, detail="Credenciales incorrectas")
+            result = await session.execute(select(Usuario).where(
+                Usuario.email == form_data.username,
+                Usuario.activo == True
+            ))
+            usuario = result.scalar_one_or_none()
+            if not usuario or not pwd_context.verify(form_data.password, usuario.password_hash):
+                logger.error(f"Login error: Credenciales incorrectas para {form_data.username}")
+                raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-        if not usuario.paciente_id and not usuario.trabajador_id:
-            raise HTTPException(status_code=403, detail="Cuenta inválida: usuario sin vínculo activo")
+            if not usuario.paciente_id and not usuario.trabajador_id:
+                logger.error(f"Login error: Usuario sin vínculo activo {form_data.username}")
+                raise HTTPException(status_code=403, detail="Cuenta inválida: usuario sin vínculo activo")
 
-        token = crear_token({
-            "sub": str(usuario.id),
-            "rol": usuario.rol,
-            "paciente_id": (str(usuario.paciente_id) if usuario.paciente_id else None),
-            "trabajador_id": (str(usuario.trabajador_id) if usuario.trabajador_id else None),
-        })
-        return {"access_token": token, "token_type": "bearer", "rol": usuario.rol}
+            token = crear_token({
+                "sub": str(usuario.id),
+                "rol": usuario.rol,
+                "paciente_id": (str(usuario.paciente_id) if usuario.paciente_id else None),
+                "trabajador_id": (str(usuario.trabajador_id) if usuario.trabajador_id else None),
+            })
+            logger.info(f"Login exitoso para {form_data.username} (rol: {usuario.rol})")
+            return {"access_token": token, "token_type": "bearer", "rol": usuario.rol}
+    except Exception as e:
+        logger.exception(f"Error inesperado en login para {getattr(form_data, 'username', 'N/A')}: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @app.post("/portal/registro-paciente")
@@ -1538,7 +1538,16 @@ async def root():
     return {"msg": "NUEVA VERSION"}
 
 
-@app.get("/proyecto/python")
-async def proyecto_python():
-    """Devuelve el alcance oficial del proyecto para frontend, desktop y documentación."""
-    return PROJECT_PYTHON_SCOPE
+
+
+# Bloque de arranque para Render y ejecución local
+if __name__ == "__main__":
+    import uvicorn
+    try:
+        port = int(os.environ.get("PORT", 10000))
+        uvicorn.run("backend.main:app", host="0.0.0.0", port=port)
+    except Exception as e:
+        import traceback
+        print("ERROR AL INICIAR UVICORN O CONECTAR A LA BASE DE DATOS")
+        traceback.print_exc()
+        raise
