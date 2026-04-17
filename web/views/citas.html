@@ -1,0 +1,22 @@
+<!-- Gestión de citas -->
+<h3>Mis Citas</h3>
+<button onclick="showCitaForm()">Agendar Nueva Cita</button>
+<div id="citas-list"></div>
+<div id="cita-form" style="display:none;">
+  <h4>Agendar/Modificar Cita</h4>
+  <form>
+    <label>Fecha:</label><input type="date" required><br>
+    <label>Hora:</label><input type="time" required><br>
+    <label>Área:</label>
+    <select required>
+      <option>Urgencias</option>
+      <option>Medicina Familiar</option>
+      <option>Vacunación</option>
+      <option>Planificación Familiar</option>
+      <option>Terapia Física</option>
+      <option>Psicología</option>
+    </select><br>
+    <button type="submit">Guardar</button>
+    <button type="button" onclick="hideCitaForm()">Cancelar</button>
+  </form>
+</div>

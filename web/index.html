@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Portal del Paciente</title>
+    <link rel="stylesheet" href="css/style.css?v=20260416c">
+</head>
+<body>
+    <div class="page-shell">
+        <header class="hero-panel">
+            <div class="hero-content">
+                <span class="eyebrow">Hospital Integral</span>
+                <h1>Portal del paciente</h1>
+            </div>
+        </header>
+
+        <main class="main-panel">
+            <div id="message-box" class="message-box hidden"></div>
+
+            <section id="auth-view" class="card auth-card">
+                <div class="auth-tabs">
+                    <button id="tab-login" class="tab-btn active" type="button">Iniciar sesión</button>
+                    <button id="tab-register" class="tab-btn" type="button">Crear cuenta</button>
+                </div>
+
+                <div id="login-panel" class="auth-panel">
+                    <h2>Accede a tu cuenta</h2>
+                    <p>Ingresa con el correo y la contraseña de tu cuenta de paciente.</p>
+                    <form id="login-form" class="form-grid">
+                        <label>
+                            <span>Correo</span>
+                            <input type="email" id="login-email" required>
+                        </label>
+                        <label>
+                            <span>Contraseña</span>
+                            <input type="password" id="login-pass" required>
+                        </label>
+                        <div class="form-inline-action">
+                            <button id="forgot-password-btn" class="text-btn" type="button">Olvidé mi contraseña</button>
+                        </div>
+                        <button class="primary-btn" type="submit">Entrar</button>
+                    </form>
+                </div>
+
+                <div id="reset-panel" class="auth-panel hidden">
+                    <h2>Restablecer contraseña</h2>
+                    <p>Verifica correo y nombre del paciente para definir una nueva contraseña.</p>
+                    <form id="reset-form" class="form-grid two-columns">
+                        <label>
+                            <span>Correo</span>
+                            <input type="email" id="reset-email" required>
+                        </label>
+                        <label>
+                            <span>Nombre del paciente</span>
+                            <input type="text" id="reset-nombre" required>
+                        </label>
+                        <label class="full-width">
+                            <span>Nueva contraseña</span>
+                            <input type="password" id="reset-pass" required>
+                        </label>
+                        <label class="full-width">
+                            <span>Confirmar nueva contraseña</span>
+                            <input type="password" id="reset-pass-confirm" required>
+                        </label>
+                        <div class="full-width form-actions">
+                            <button class="primary-btn" type="submit">Restablecer contraseña</button>
+                            <button id="back-login-btn" class="secondary-btn" type="button">Volver a iniciar sesión</button>
+                        </div>
+                    </form>
+                </div>
+
+                <div id="register-panel" class="auth-panel hidden">
+                    <h2>Crear cuenta de paciente</h2>
+                    <p>Se creará o vinculará tu cuenta con el registro de paciente correspondiente.</p>
+                    <form id="register-form" class="form-grid two-columns">
+                        <label>
+                            <span>Nombre</span>
+                            <input type="text" id="reg-nombre" required>
+                        </label>
+                        <label>
+                            <span>Apellido</span>
+                            <input type="text" id="reg-apellido" required>
+                        </label>
+                        <label>
+                            <span>Fecha de nacimiento</span>
+                            <input type="date" id="reg-fecha" required>
+                        </label>
+                        <label>
+                            <span>Sexo</span>
+                            <select id="reg-sexo" required>
+                                <option value="">Selecciona una opción</option>
+                                <option value="F">Femenino</option>
+                                <option value="M">Masculino</option>
+                            </select>
+                        </label>
+                        <label>
+                            <span>Teléfono</span>
+                            <input type="text" id="reg-telefono">
+                        </label>
+                        <label>
+                            <span>Dirección</span>
+                            <input type="text" id="reg-direccion">
+                        </label>
+                        <label>
+                            <span>Correo</span>
+                            <input type="email" id="reg-email" required>
+                        </label>
+                        <label>
+                            <span>Contraseña</span>
+                            <input type="password" id="reg-pass" required>
+                        </label>
+                        <div class="full-width">
+                            <button class="primary-btn" type="submit">Registrar cuenta</button>
+                        </div>
+                    </form>
+                </div>
+            </section>
+
+            <section id="dashboard-view" class="hidden">
+                <header class="dashboard-header card">
+                    <div>
+                        <span class="eyebrow">Portal activo</span>
+                        <h2 id="welcome-name">Bienvenido</h2>
+                        <p id="profile-summary">Consulta y administra tu información médica.</p>
+                    </div>
+                    <button id="logout-btn" class="secondary-btn" type="button">Cerrar sesión</button>
+                </header>
+
+                <div class="dashboard-layout">
+                    <nav class="sidebar card">
+                        <button class="nav-btn active" data-view="citas" type="button">Mis citas</button>
+                        <button class="nav-btn" data-view="historial" type="button">Historial</button>
+                        <button class="nav-btn" data-view="perfil" type="button">Mi perfil</button>
+                    </nav>
+
+                    <section id="content-view" class="content-panel"></section>
+                </div>
+            </section>
+        </main>
+    </div>
+
+    <script src="js/main.js?v=20260416d"></script>
+</body>
+</html>
