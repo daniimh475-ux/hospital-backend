@@ -619,6 +619,7 @@ async def login(form_data: OAuth2PasswordRequestForm = Depends()):
             logger.info(f"Login exitoso para {form_data.username} (rol: {usuario.rol})")
             return {"access_token": token, "token_type": "bearer", "rol": usuario.rol}
     except Exception as e:
+        print(f"ERROR LOGIN: usuario={getattr(form_data, 'username', 'N/A')} - error={e}")
         logger.exception(f"Error inesperado en login para {getattr(form_data, 'username', 'N/A')}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
