@@ -1,3 +1,16 @@
+import os
+
+# Bloque de arranque para Render y ejecución local
+if __name__ == "__main__":
+    import uvicorn
+    try:
+        port = int(os.environ.get("PORT", 10000))
+        uvicorn.run("backend.main:app", host="0.0.0.0", port=port)
+    except Exception as e:
+        import traceback
+        print("ERROR AL INICIAR UVICORN O CONECTAR A LA BASE DE DATOS")
+        traceback.print_exc()
+        raise
 from datetime import date, time, datetime, timedelta
 from typing import Optional
 from fastapi import FastAPI, HTTPException, Depends, status, Request
@@ -740,7 +753,7 @@ async def restablecer_password_portal(data: PortalPacientePasswordReset, request
 
 
 @app.get("/mi-perfil")
-async def obtener_mi_perfil():
+async def obtener_mi_perfil(user=Depends(solo_paciente)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid("00000000-0000-0000-0000-000000000002", "paciente_id")
         paciente = await obtener_paciente_activo(session, paciente_uuid)
@@ -763,7 +776,7 @@ async def obtener_mi_perfil():
 
 
 @app.get("/mis-citas")
-async def listar_mis_citas():
+async def listar_mis_citas(user=Depends(solo_paciente)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid("00000000-0000-0000-0000-000000000002", "paciente_id")
         result = await session.execute(
@@ -785,7 +798,7 @@ async def listar_mis_citas():
 
 
 @app.post("/mis-citas")
-async def crear_mi_cita(payload: PatientAppointmentPayload):
+async def crear_mi_cita(payload: PatientAppointmentPayload, user=Depends(solo_paciente)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid("00000000-0000-0000-0000-000000000002", "paciente_id")
         await obtener_paciente_activo(session, paciente_uuid)
@@ -806,7 +819,7 @@ async def crear_mi_cita(payload: PatientAppointmentPayload):
 
 
 @app.put("/mis-citas/{cita_id}")
-async def actualizar_mi_cita(cita_id: str, payload: PatientAppointmentPayload):
+async def actualizar_mi_cita(cita_id: str, payload: PatientAppointmentPayload, user=Depends(solo_paciente)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid("00000000-0000-0000-0000-000000000002", "paciente_id")
         cita_uuid = parse_uuid(cita_id, "cita_id")
@@ -833,7 +846,7 @@ async def actualizar_mi_cita(cita_id: str, payload: PatientAppointmentPayload):
 
 
 @app.delete("/mis-citas/{cita_id}")
-async def cancelar_mi_cita(cita_id: str):
+async def cancelar_mi_cita(cita_id: str, user=Depends(solo_paciente)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid("00000000-0000-0000-0000-000000000002", "paciente_id")
         cita_uuid = parse_uuid(cita_id, "cita_id")
@@ -853,7 +866,7 @@ async def cancelar_mi_cita(cita_id: str):
 
 
 @app.get("/mi-historial")
-async def obtener_mi_historial():
+async def obtener_mi_historial(user=Depends(solo_paciente)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid("00000000-0000-0000-0000-000000000002", "paciente_id")
         result = await session.execute(
@@ -875,7 +888,7 @@ async def obtener_mi_historial():
 
 
 @app.get("/mis-referencias")
-async def obtener_mis_referencias():
+async def obtener_mis_referencias(user=Depends(solo_paciente)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid("00000000-0000-0000-0000-000000000002", "paciente_id")
         result = await session.execute(
@@ -903,7 +916,7 @@ async def obtener_mis_referencias():
 
 
 @app.get("/usuarios")
-async def listar_usuarios(activos_solo: bool = True):
+async def listar_usuarios(activos_solo: bool = True, user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         query = select(Usuario)
         if activos_solo:
@@ -953,7 +966,7 @@ async def listar_usuarios(activos_solo: bool = True):
 
 
 @app.patch("/usuarios/{usuario_id}/password")
-async def reset_password_usuario(usuario_id: str, payload: UsuarioPasswordReset):
+async def reset_password_usuario(usuario_id: str, payload: UsuarioPasswordReset, user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         validate_password_policy(payload.new_password, "new_password")
         usuario_uuid = parse_uuid(usuario_id, "usuario_id")
@@ -969,7 +982,7 @@ async def reset_password_usuario(usuario_id: str, payload: UsuarioPasswordReset)
 
 
 @app.get("/trabajadores/sin-usuario")
-async def listar_trabajadores_sin_usuario():
+async def listar_trabajadores_sin_usuario(user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         usuarios_activos_subq = (
             select(1)
@@ -1000,7 +1013,7 @@ async def listar_trabajadores_sin_usuario():
 # ── Áreas ─────────────────────────────────────────────────────────────────────
 
 @app.get("/areas")
-async def listar_areas():
+async def listar_areas(user=Depends(get_current_user)):
     async with SessionLocal() as session:
         result = await session.execute(
             select(Area).where(Area.activo == True).order_by(Area.nombre.asc())
@@ -1009,7 +1022,7 @@ async def listar_areas():
         return [{"id": str(a.id), "nombre": a.nombre, "descripcion": a.descripcion} for a in areas]
 
 @app.post("/areas")
-async def crear_area(nombre: str, descripcion: str = None):
+async def crear_area(nombre: str, descripcion: str = None, user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         validate_required_text(nombre, "nombre")
         nombre_clean = nombre.strip()
@@ -1025,7 +1038,7 @@ async def crear_area(nombre: str, descripcion: str = None):
 # ── Pacientes (solo Archivo) ──────────────────────────────────────────────────
 
 @app.get("/pacientes")
-async def listar_pacientes():
+async def listar_pacientes(user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         result = await session.execute(select(Paciente).where(Paciente.activo == True))
         pacientes = result.scalars().all()
@@ -1044,7 +1057,7 @@ async def listar_pacientes():
 
 
 @app.get("/areas/pacientes/mi-area")
-async def listar_pacientes_mi_area():
+async def listar_pacientes_mi_area(user=Depends(solo_areas_medicas)):
     async with SessionLocal() as session:
         area = await resolve_area_id_by_role(session, "urgencias")
         if not area:
@@ -1158,7 +1171,7 @@ async def listar_pacientes_mi_area():
 
 
 @app.get("/pacientes/sin-usuario")
-async def listar_pacientes_sin_usuario():
+async def listar_pacientes_sin_usuario(user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         usuarios_activos_subq = (
             select(1)
@@ -1275,7 +1288,7 @@ async def eliminar_paciente(id: str):
 # ── Citas (solo Archivo) ──────────────────────────────────────────────────────
 
 @app.post("/citas")
-async def crear_cita(cita: CitaCreate):
+async def crear_cita(cita: CitaCreate, user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid(cita.paciente_id, "paciente_id")
 
@@ -1325,7 +1338,7 @@ async def crear_cita(cita: CitaCreate):
         return {"msg": "Cita creada"}
 
 @app.get("/citas")
-async def listar_citas():
+async def listar_citas(user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         result = await session.execute(select(Cita).where(Cita.activo == True))
         citas = result.scalars().all()
@@ -1341,7 +1354,7 @@ async def listar_citas():
         ]
 
 @app.delete("/citas/{id}")
-async def cancelar_cita(id: str):
+async def cancelar_cita(id: str, user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         cita_uuid = parse_uuid(id, "id")
         result = await session.execute(select(Cita).where(
@@ -1359,7 +1372,7 @@ async def cancelar_cita(id: str):
 # ── Atenciones (áreas médicas) ────────────────────────────────────────────────
 
 @app.post("/atenciones")
-async def registrar_atencion(data: AtencionCreate):
+async def registrar_atencion(data: AtencionCreate, user=Depends(solo_areas_medicas)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid(data.paciente_id, "paciente_id")
         area_uuid = parse_uuid(data.area_id, "area_id")
@@ -1407,7 +1420,7 @@ async def registrar_atencion(data: AtencionCreate):
         return {"msg": "Atención registrada", "atencion_id": str(atencion.id)}
 
 @app.get("/atenciones")
-async def listar_atenciones(paciente_id: str = None):
+async def listar_atenciones(paciente_id: str = None, user=Depends(get_current_user)):
     async with SessionLocal() as session:
         query = select(Atencion).where(Atencion.activo == True)
         if paciente_id:
@@ -1427,7 +1440,7 @@ async def listar_atenciones(paciente_id: str = None):
 # ── Historial ─────────────────────────────────────────────────────────────────
 
 @app.get("/historial/{paciente_id}")
-async def obtener_historial(paciente_id: str):
+async def obtener_historial(paciente_id: str, user=Depends(solo_archivo)):
     async with SessionLocal() as session:
         paciente_uuid = parse_uuid(paciente_id, "paciente_id")
         result = await session.execute(select(Historial).where(
@@ -1446,7 +1459,7 @@ async def obtener_historial(paciente_id: str):
 # ── Referencias ───────────────────────────────────────────────────────────────
 
 @app.post("/referencias")
-async def crear_referencia(data: ReferenciaCreate):
+async def crear_referencia(data: ReferenciaCreate, user=Depends(solo_areas_medicas)):
     async with SessionLocal() as session:
         atencion_uuid = parse_uuid(data.atencion_id, "atencion_id")
         area_destino_uuid = parse_uuid(data.area_destino_id, "area_destino_id")
@@ -1493,7 +1506,7 @@ async def crear_referencia(data: ReferenciaCreate):
         return {"msg": "Referencia creada y registrada en historial"}
 
 @app.get("/referencias")
-async def listar_referencias(paciente_id: str = None):
+async def listar_referencias(paciente_id: str = None, user=Depends(get_current_user)):
     async with SessionLocal() as session:
         query = select(Referencia).where(Referencia.activo == True)
         if paciente_id:
@@ -1522,7 +1535,7 @@ async def listar_referencias(paciente_id: str = None):
 
 @app.get("/")
 async def root():
-    return {"msg": "API Hospital funcionando"}
+    return {"msg": "NUEVA VERSION"}
 
 
 @app.get("/proyecto/python")

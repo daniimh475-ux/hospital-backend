@@ -14,9 +14,16 @@ if exist backend\requirements.txt (
 )
 
 
-REM Matar cualquier proceso uvicorn antes de iniciar el backend
-for /f "tokens=2" %%a in ('tasklist ^| findstr /i "uvicorn.exe"') do taskkill /PID %%a /F
-start "Backend" cmd /c "uvicorn backend.main:app --port 8001"
+
+REM =============================================
+REM  NO INICIAR BACKEND LOCAL EN PRODUCCIÓN
+REM  El EXE/Tkinter usa:
+REM  https://hospital-backend-o0on.onrender.com
+REM =============================================
+
+REM Si necesitas backend local, descomenta:
+REM for /f "tokens=2" %%a in ('tasklist ^| findstr /i "uvicorn.exe"') do taskkill /PID %%a /F
+REM start "Backend" cmd /c "uvicorn backend.main:app --port 8001"
 
 REM Esperar 5 segundos para que el backend arranque
 ping 127.0.0.1 -n 6 > nul
