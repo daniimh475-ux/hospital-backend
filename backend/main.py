@@ -592,6 +592,7 @@ async def registrar_usuario_personal(data: TrabajadorUserRegister, user=Depends(
 
 @app.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    print(f"LOGIN INTENT: usuario={getattr(form_data, 'username', 'N/A')}")
     try:
         async with SessionLocal() as session:
             validate_required_text(form_data.username, "username")
