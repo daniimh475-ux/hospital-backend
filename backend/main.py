@@ -1,3 +1,8 @@
+
+# Endpoint de prueba para verificar versión debug
+@app.get("/")
+async def root():
+    return {"msg": "VERSION DEBUG LOGIN 123"}
 import logging
 import traceback
 from fastapi.responses import JSONResponse
