@@ -1,8 +1,12 @@
 
-# Endpoint de prueba para verificar versión debug
+from fastapi import FastAPI
+
+app = FastAPI()
+
 @app.get("/")
-async def root():
-    return {"msg": "VERSION DEBUG LOGIN 123"}
+def root():
+    return {"message": "Hello"}
+
 import logging
 import traceback
 from fastapi.responses import JSONResponse
@@ -13,7 +17,7 @@ from typing import Optional
 import uuid
 import logging
 import bcrypt
-from fastapi import FastAPI, HTTPException, Depends, status, Request
+from fastapi import HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from sqlalchemy.future import select
