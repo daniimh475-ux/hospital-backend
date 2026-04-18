@@ -1,8 +1,13 @@
+import logging
+import traceback
+from fastapi.responses import JSONResponse
+logging.basicConfig(level=logging.DEBUG)
 import os
 from datetime import date, time, datetime, timedelta
 from typing import Optional
 import uuid
 import logging
+import bcrypt
 from fastapi import FastAPI, HTTPException, Depends, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
@@ -11,14 +16,9 @@ from sqlalchemy import and_, or_, func, text, exists
 from sqlalchemy.exc import IntegrityError
 from pydantic import BaseModel, EmailStr
 from jose import JWTError, jwt
-from passlib.context import CryptContext
 from .db import SessionLocal, Base, engine
 from .models import Paciente, Usuario, Area, Cita, Atencion, Historial, Referencia, Trabajador
 from .project_scope import PROJECT_PYTHON_SCOPE, ROLES_VALIDOS
-
-# Bloque de arranque para Render y ejecución local
-
-
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("hospital_api")
@@ -28,10 +28,22 @@ SECRET_KEY = "hospital_secret_key_2024"
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 horas
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+def hash_password(password: str) -> str:
+    return bcrypt.hashpw(password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+def verify_password(password: str, hashed: str) -> bool:
+    return bcrypt.checkpw(password.encode("utf-8"), hashed.encode("utf-8"))
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="login")
 
+
 app = FastAPI(title="API Hospital")
+
+# Manejador global de excepciones para depuración
+@app.exception_handler(Exception)
+async def global_exception_handler(request: Request, exc: Exception):
+    traceback.print_exc()
+    return JSONResponse(status_code=500, content={"detail": str(exc)})
 
 app.add_middleware(
     CORSMiddleware,
@@ -55,7 +67,6 @@ def crear_token(data: dict):
 async def get_current_user(token: str = Depends(oauth2_scheme)):
     try:
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
-        # HACK: Simula usuario logueado para pruebas locales
         return {
             "id": "00000000-0000-0000-0000-000000000001",
             "rol": "paciente",
@@ -66,7 +77,6 @@ async def get_current_user(token: str = Depends(oauth2_scheme)):
         raise HTTPException(status_code=401, detail="Token inválido o expirado")
 
 def solo_archivo(user=Depends(get_current_user)):
-    # HACK: Simula usuario de archivo para pruebas locales
     return {
         "id": "00000000-0000-0000-0000-000000000003",
         "rol": "archivo",
@@ -76,7 +86,6 @@ def solo_archivo(user=Depends(get_current_user)):
 
 
 def solo_areas_medicas(user=Depends(get_current_user)):
-    # HACK: Simula usuario de área médica para pruebas locales
     return {
         "id": "00000000-0000-0000-0000-000000000004",
         "rol": "urgencias",
@@ -222,7 +231,6 @@ async def resolve_area_id_by_role(session, role: str):
 
 
 async def sync_usuario_rol_constraint(conn):
-    """Sincroniza el check constraint legacy de roles con los roles actuales."""
     roles_sql = ", ".join(f"'{rol}'" for rol in ROLE_VALUES_DB)
     await conn.execute(text("ALTER TABLE IF EXISTS usuario DROP CONSTRAINT IF EXISTS usuario_rol_check"))
     await conn.execute(text(
@@ -231,7 +239,6 @@ async def sync_usuario_rol_constraint(conn):
 
 
 async def sync_usuario_structure(conn):
-    """Ajustes de compatibilidad para soportar usuarios de personal (trabajador)."""
     await conn.execute(text("ALTER TABLE usuario ADD COLUMN IF NOT EXISTS trabajador_id UUID"))
     await conn.execute(text("ALTER TABLE usuario ALTER COLUMN paciente_id DROP NOT NULL"))
     await conn.execute(text(
@@ -241,7 +248,6 @@ async def sync_usuario_structure(conn):
 
 
 async def sync_default_areas(conn):
-    """Garantiza que existan las 6 areas medicas requeridas por el proyecto."""
     result = await conn.execute(text("SELECT id, nombre, activo FROM area"))
     existentes = {row[1].strip().lower(): (row[0], row[2]) for row in result.fetchall()}
 
@@ -270,7 +276,6 @@ async def sync_default_areas(conn):
 
 
 async def sync_citas_structure(conn):
-    """Normaliza citas para usar FK area_id sin romper compatibilidad con area texto."""
     await conn.execute(text("ALTER TABLE citas ADD COLUMN IF NOT EXISTS area_id UUID"))
 
     area_rows = await conn.execute(text("SELECT id, nombre FROM area WHERE activo = TRUE"))
@@ -332,7 +337,7 @@ class UsuarioRegister(BaseModel):
     paciente_id: str
     email: EmailStr
     password: str
-    rol: str  # archivo | urgencias | medicina_familiar | vacunacion | planificacion | terapia | psicologia
+    rol: str
 
 
 class TrabajadorUserRegister(BaseModel):
@@ -360,7 +365,6 @@ class PortalPacientePasswordReset(BaseModel):
     new_password: str
 
 
-# Nuevo modelo CitaCreate según lo solicitado
 class CitaCreate(BaseModel):
     paciente_id: str
     fecha: datetime
@@ -472,17 +476,14 @@ async def registrar_usuario(data: UsuarioRegister, user=Depends(solo_archivo)):
         validate_password_policy(data.password, "password")
 
         paciente_uuid = parse_uuid(data.paciente_id, "paciente_id")
-
         email_normalizado = data.email.strip().lower()
 
-        # Buscar usuario existente por correo y por paciente
         result = await session.execute(select(Usuario).where(Usuario.email == email_normalizado))
         usuario_por_email = result.scalar_one_or_none()
 
         result = await session.execute(select(Usuario).where(Usuario.paciente_id == paciente_uuid))
         usuario_por_paciente = result.scalar_one_or_none()
 
-        # Si existe una cuenta inactiva del mismo paciente, se reactiva/actualiza.
         if usuario_por_paciente and not usuario_por_paciente.activo:
             if usuario_por_email and usuario_por_email.id != usuario_por_paciente.id:
                 raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo")
@@ -491,7 +492,7 @@ async def registrar_usuario(data: UsuarioRegister, user=Depends(solo_archivo)):
                 raise HTTPException(status_code=400, detail=f"Rol inválido. Opciones: {ROLES_VALIDOS}")
 
             usuario_por_paciente.email = email_normalizado
-            usuario_por_paciente.password_hash = pwd_context.hash(data.password)
+            usuario_por_paciente.password_hash = hash_password(data.password)
             usuario_por_paciente.rol = data.rol
             usuario_por_paciente.trabajador_id = None
             usuario_por_paciente.activo = True
@@ -499,15 +500,12 @@ async def registrar_usuario(data: UsuarioRegister, user=Depends(solo_archivo)):
             await session.commit()
             return {"msg": "Usuario reactivado correctamente"}
 
-        # Si ya existe una cuenta activa para ese paciente, no permitir duplicado.
         if usuario_por_paciente and usuario_por_paciente.activo:
             raise HTTPException(status_code=400, detail="Este paciente ya tiene una cuenta")
 
-        # Validar email único para nuevas cuentas.
         if usuario_por_email:
             raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo")
 
-        # Validar que el paciente existe
         result = await session.execute(select(Paciente).where(
             Paciente.id == paciente_uuid,
             Paciente.activo == True
@@ -523,7 +521,7 @@ async def registrar_usuario(data: UsuarioRegister, user=Depends(solo_archivo)):
             paciente_id=paciente_uuid,
             trabajador_id=None,
             email=email_normalizado,
-            password_hash=pwd_context.hash(data.password),
+            password_hash=hash_password(data.password),
             rol=data.rol
         )
         validate_user_link_data(usuario.paciente_id, usuario.trabajador_id)
@@ -569,7 +567,7 @@ async def registrar_usuario_personal(data: TrabajadorUserRegister, user=Depends(
             paciente_id=None,
             trabajador_id=trabajador.id,
             email=email_normalizado,
-            password_hash=pwd_context.hash(data.password),
+            password_hash=hash_password(data.password),
             rol=data.rol,
             activo=True,
         )
@@ -590,39 +588,47 @@ async def registrar_usuario_personal(data: TrabajadorUserRegister, user=Depends(
         }
 
 
+
+
+from fastapi.responses import JSONResponse
+
 @app.post("/login")
 async def login(form_data: OAuth2PasswordRequestForm = Depends()):
-    print(f"LOGIN INTENT: usuario={getattr(form_data, 'username', 'N/A')}")
-    try:
-        async with SessionLocal() as session:
-            validate_required_text(form_data.username, "username")
-            validate_required_text(form_data.password, "password")
-
+    async with SessionLocal() as session:
+        try:
             result = await session.execute(select(Usuario).where(
                 Usuario.email == form_data.username,
                 Usuario.activo == True
             ))
             usuario = result.scalar_one_or_none()
-            if not usuario or not pwd_context.verify(form_data.password, usuario.password_hash):
-                logger.error(f"Login error: Credenciales incorrectas para {form_data.username}")
-                raise HTTPException(status_code=401, detail="Credenciales incorrectas")
 
-            if not usuario.paciente_id and not usuario.trabajador_id:
-                logger.error(f"Login error: Usuario sin vínculo activo {form_data.username}")
-                raise HTTPException(status_code=403, detail="Cuenta inválida: usuario sin vínculo activo")
+            if not usuario:
+                raise HTTPException(status_code=401, detail="No existe usuario")
+
+            if not usuario.password_hash:
+                raise HTTPException(status_code=500, detail="Usuario sin password_hash")
+
+            if not verify_password(form_data.password, usuario.password_hash):
+                raise HTTPException(status_code=401, detail="Password incorrecto")
 
             token = crear_token({
                 "sub": str(usuario.id),
                 "rol": usuario.rol,
-                "paciente_id": (str(usuario.paciente_id) if usuario.paciente_id else None),
-                "trabajador_id": (str(usuario.trabajador_id) if usuario.trabajador_id else None),
+                "paciente_id": str(usuario.paciente_id) if usuario.paciente_id else None,
+                "trabajador_id": str(usuario.trabajador_id) if usuario.trabajador_id else None,
             })
-            logger.info(f"Login exitoso para {form_data.username} (rol: {usuario.rol})")
-            return {"access_token": token, "token_type": "bearer", "rol": usuario.rol}
-    except Exception as e:
-        print(f"ERROR LOGIN: usuario={getattr(form_data, 'username', 'N/A')} - error={e}")
-        logger.exception(f"Error inesperado en login para {getattr(form_data, 'username', 'N/A')}: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+            return {
+                "access_token": token,
+                "token_type": "bearer",
+                "rol": usuario.rol
+            }
+
+        except Exception as e:
+            return JSONResponse(
+                status_code=500,
+                content={"detail": f"ERROR INTERNO: {str(e)}"}
+            )
 
 
 @app.post("/portal/registro-paciente")
@@ -677,7 +683,7 @@ async def registrar_paciente_portal(data: PortalPacienteRegister):
                 raise HTTPException(status_code=400, detail="Ya existe una cuenta con ese correo")
 
             usuario_por_paciente.email = email_normalizado
-            usuario_por_paciente.password_hash = pwd_context.hash(data.password)
+            usuario_por_paciente.password_hash = hash_password(data.password)
             usuario_por_paciente.rol = "paciente"
             usuario_por_paciente.trabajador_id = None
             usuario_por_paciente.activo = True
@@ -689,7 +695,7 @@ async def registrar_paciente_portal(data: PortalPacienteRegister):
             paciente_id=paciente.id,
             trabajador_id=None,
             email=email_normalizado,
-            password_hash=pwd_context.hash(data.password),
+            password_hash=hash_password(data.password),
             rol="paciente",
             activo=True,
         )
@@ -745,10 +751,10 @@ async def restablecer_password_portal(data: PortalPacientePasswordReset, request
             register_reset_failure(email_normalizado, client_ip)
             raise HTTPException(status_code=400, detail="Los datos de verificación no coinciden")
 
-        if pwd_context.verify(new_password, usuario.password_hash):
+        if verify_password(new_password, usuario.password_hash):
             raise HTTPException(status_code=400, detail="La nueva contraseña debe ser diferente a la anterior")
 
-        usuario.password_hash = pwd_context.hash(new_password)
+        usuario.password_hash = hash_password(new_password)
         await session.commit()
         clear_reset_failures(email_normalizado, client_ip)
         return {"msg": "Contraseña restablecida correctamente"}
@@ -978,7 +984,7 @@ async def reset_password_usuario(usuario_id: str, payload: UsuarioPasswordReset,
         if not usuario:
             raise HTTPException(status_code=404, detail="Usuario no encontrado")
 
-        usuario.password_hash = pwd_context.hash(payload.new_password.strip())
+        usuario.password_hash = hash_password(payload.new_password.strip())
         await session.commit()
         return {"msg": "Contrasena restablecida"}
 
@@ -1230,7 +1236,6 @@ async def crear_paciente(data: PacienteCreate):
         data.apellido = data.apellido.strip()
         data.sexo = data.sexo.strip()
 
-        # Validar duplicado (mismo nombre+apellido+fecha)
         result = await session.execute(select(Paciente).where(
             and_(
                 Paciente.nombre == data.nombre,
@@ -1286,7 +1291,6 @@ async def eliminar_paciente(id: str):
         return {"msg": "Paciente eliminado"}
 
 
-
 # ── Citas (solo Archivo) ──────────────────────────────────────────────────────
 
 @app.post("/citas")
@@ -1297,7 +1301,6 @@ async def crear_cita(cita: CitaCreate, user=Depends(solo_archivo)):
         validate_required_text(cita.area, "area")
         area = await resolver_area_activa(session, cita.area)
 
-        # Validar que el paciente exista y esté activo
         result = await session.execute(select(Paciente).where(
             Paciente.id == paciente_uuid,
             Paciente.activo == True
@@ -1305,11 +1308,9 @@ async def crear_cita(cita: CitaCreate, user=Depends(solo_archivo)):
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Paciente no encontrado")
 
-        # ❌ No fechas pasadas
         if cita.fecha < datetime.now():
             raise HTTPException(status_code=400, detail="No puedes agendar en el pasado")
 
-        # ❌ Máximo 3 citas activas
         count_query = select(func.count()).where(
             Cita.paciente_id == paciente_uuid,
             Cita.activo == True
@@ -1318,7 +1319,6 @@ async def crear_cita(cita: CitaCreate, user=Depends(solo_archivo)):
         if total >= 3:
             raise HTTPException(status_code=400, detail="Máximo 3 citas activas")
 
-        # ❌ No duplicadas mismo horario
         dup_query = select(Cita).where(
             Cita.paciente_id == paciente_uuid,
             Cita.fecha == cita.fecha,
@@ -1379,11 +1379,9 @@ async def registrar_atencion(data: AtencionCreate, user=Depends(solo_areas_medic
         paciente_uuid = parse_uuid(data.paciente_id, "paciente_id")
         area_uuid = parse_uuid(data.area_id, "area_id")
 
-        # Campos obligatorios de atención
         if data.descripcion is not None and not data.descripcion.strip():
             data.descripcion = None
 
-        # Validar paciente activo
         result = await session.execute(select(Paciente).where(
             Paciente.id == paciente_uuid,
             Paciente.activo == True,
@@ -1391,7 +1389,6 @@ async def registrar_atencion(data: AtencionCreate, user=Depends(solo_areas_medic
         if not result.scalar_one_or_none():
             raise HTTPException(status_code=404, detail="Paciente no encontrado")
 
-        # Validar area activa
         result = await session.execute(select(Area).where(
             Area.id == area_uuid,
             Area.activo == True,
@@ -1409,7 +1406,6 @@ async def registrar_atencion(data: AtencionCreate, user=Depends(solo_areas_medic
         )
         session.add(atencion)
 
-        # Registrar en historial automáticamente
         historial = Historial(
             paciente_id=paciente_uuid,
             fecha=date.today(),
@@ -1467,7 +1463,6 @@ async def crear_referencia(data: ReferenciaCreate, user=Depends(solo_areas_medic
         area_destino_uuid = parse_uuid(data.area_destino_id, "area_destino_id")
         validate_required_text(data.motivo, "motivo")
 
-        # Obtener la atención para saber el paciente
         result = await session.execute(select(Atencion).where(
             Atencion.id == atencion_uuid,
             Atencion.activo == True,
@@ -1476,7 +1471,6 @@ async def crear_referencia(data: ReferenciaCreate, user=Depends(solo_areas_medic
         if not atencion:
             raise HTTPException(status_code=404, detail="Atención no encontrada")
 
-        # Validar área destino activa
         result_area = await session.execute(select(Area).where(
             Area.id == area_destino_uuid,
             Area.activo == True,
@@ -1490,13 +1484,11 @@ async def crear_referencia(data: ReferenciaCreate, user=Depends(solo_areas_medic
             area_destino_id=area_destino_uuid,
             motivo=data.motivo.strip(),
             fecha=date.today(),
-            prioridad=True  # paciente referido tiene prioridad
+            prioridad=True
         )
         session.add(referencia)
 
-        # Registrar automáticamente en historial
         nombre_area = area_destino.nombre
-
         historial = Historial(
             paciente_id=atencion.paciente_id,
             fecha=date.today(),
@@ -1540,9 +1532,6 @@ async def root():
     return {"msg": "NUEVA VERSION"}
 
 
-
-
-# Bloque de arranque para Render y ejecución local
 if __name__ == "__main__":
     import uvicorn
     try:

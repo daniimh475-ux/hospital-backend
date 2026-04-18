@@ -195,7 +195,7 @@ class LoginFrame(tk.Frame):
         except requests.exceptions.ConnectionError:
             self.after(0, lambda: self._login_error('No se pudo conectar al backend'))
         except Exception as e:
-            self.after(0, lambda: self._login_error(str(e)))
+            self.after(0, lambda e=e: self._login_error(str(e)))
 
     def _login_error(self, message):
         self.login_button.config(state='normal', text='Entrar', bg=BTN_BG)
