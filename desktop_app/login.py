@@ -2,9 +2,37 @@ import threading
 import tkinter as tk
 from tkinter import messagebox
 
-import requests
 
-API_BASE_URL = "https://hospital-backend-o0on.onrender.com"
+import requests
+import threading
+
+LOCAL_URL = "http://127.0.0.1:8000"
+CLOUD_URL = "https://hospital-backend-o0on.onrender.com"
+
+API_BASE_URL = None
+
+def detectar_api():
+    global API_BASE_URL
+    try:
+        if requests.get(LOCAL_URL, timeout=1).status_code == 200:
+            print("🔌 LOCAL")
+            API_BASE_URL = LOCAL_URL
+            return
+    except:
+        pass
+    try:
+        if requests.get(CLOUD_URL, timeout=3).status_code == 200:
+            print("☁️ NUBE")
+            API_BASE_URL = CLOUD_URL
+            return
+    except:
+        pass
+    API_BASE_URL = None
+    print("❌ No se pudo conectar")
+
+def iniciar_deteccion():
+    thread = threading.Thread(target=detectar_api, daemon=True)
+    thread.start()
 
 BG_COLOR = "#eaf3f8"
 CARD_COLOR = "#ffffff"
@@ -160,13 +188,17 @@ class LoginFrame(tk.Frame):
         self.pass_entry.configure(show="" if self.show_pass.get() else "*")
 
     def _login(self):
+        from login import API_BASE_URL
         user = self.user_entry.get().strip()
         pwd = self.pass_entry.get().strip()
         if not user or not pwd:
             self.status_var.set('Ingresa usuario y contraseña')
             messagebox.showerror('Error', 'Ingresa usuario y contraseña')
             return
-
+        if not API_BASE_URL:
+            self.status_var.set('Esperando conexión con el backend...')
+            messagebox.showerror('Error', 'Esperando conexión con el backend...')
+            return
         self.status_var.set("")
         self.login_button.config(state='disabled', text='Entrando...', bg=BTN_BG_HOVER)
         threading.Thread(target=self._login_request, args=(user, pwd), daemon=True).start()
@@ -185,6 +217,7 @@ class LoginFrame(tk.Frame):
                 if not token:
                     self.after(0, lambda: self._login_error('Respuesta de login inválida'))
                     return
+                print("TOKEN JWT:", token)  # <-- Copia este valor para tus pruebas
                 self.after(0, lambda: self.success_callback(token, user, rol))
             else:
                 try:

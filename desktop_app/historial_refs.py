@@ -198,16 +198,16 @@ class ReferenciasFrame(tk.Frame):
         self.status_lbl = tk.Label(head, text="", bg=BG_PANEL, fg=TXT_SOFT, font=("Segoe UI", 9))
         self.status_lbl.pack(side="right")
 
-        cols = ("fecha", "atencion_id", "area_destino_id", "motivo", "prioridad")
+        cols = ("fecha", "atencion_id", "area_destino", "motivo", "prioridad")
         self.tree = ttk.Treeview(card, columns=cols, show="headings", style="HosR.Treeview")
         headers = {
             "fecha": "Fecha",
             "atencion_id": "Atención ID",
-            "area_destino_id": "Área destino",
+            "area_destino": "Área destino",
             "motivo": "Motivo clínico",
             "prioridad": "Prioridad",
         }
-        widths = {"fecha": 120, "atencion_id": 230, "area_destino_id": 230, "motivo": 320, "prioridad": 90}
+        widths = {"fecha": 120, "atencion_id": 230, "area_destino": 230, "motivo": 320, "prioridad": 90}
         for c in cols:
             self.tree.heading(c, text=headers[c])
             self.tree.column(c, width=widths[c], anchor="w")
@@ -263,7 +263,7 @@ class ReferenciasFrame(tk.Frame):
         self.tree.delete(*self.tree.get_children())
         for r in refs:
             self.tree.insert("", "end", values=(
-                r["fecha"], r["atencion_id"], r["area_destino_id"],
+                r["fecha"], r["atencion_id"], r.get("area_destino", r.get("area_destino_id", "")),
                 r["motivo"], "Sí" if r["prioridad"] else "No"
             ))
         self.status_lbl.config(text=f"{len(refs)} referencias")

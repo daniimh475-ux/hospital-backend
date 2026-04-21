@@ -148,10 +148,11 @@ class FormPaciente(tk.Toplevel):
 
 
 class PacientesFrame(tk.Frame):
-    def __init__(self, master, token, volver_callback=None):
+    def __init__(self, master, token, volver_callback=None, user_role=None):
         super().__init__(master, bg=BG_APP)
         self.token = token
         self.volver_callback = volver_callback
+        self.user_role = user_role
         self._pacientes_ids = []
         self._build_ui()
 
@@ -265,7 +266,12 @@ class PacientesFrame(tk.Frame):
 
     def _fetch_pacientes(self):
         try:
-            response = requests.get(f"{API_BASE_URL}/pacientes", headers=self._headers(), timeout=10)
+            # Selecciona el endpoint según el rol
+            if self.user_role == "archivo":
+                endpoint = f"{API_BASE_URL}/pacientes"
+            else:
+                endpoint = f"{API_BASE_URL}/areas/pacientes/mi-area"
+            response = requests.get(endpoint, headers=self._headers(), timeout=10)
             if response.status_code == 200:
                 self.after(0, lambda: self._mostrar_pacientes(response.json()))
             else:

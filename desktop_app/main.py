@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import messagebox
-from login import LoginFrame
+from login import LoginFrame, iniciar_deteccion
 from panel import PanelFrame
 from pacientes import PacientesFrame
 from citas import CitasFrame
@@ -32,6 +32,8 @@ class AppArchivo(tk.Tk):
         self.user_role = None
         self.title('Hospital - Archivo Clínico')
         self.geometry('560x420')
+        # Iniciar detección de backend al arrancar la app
+        iniciar_deteccion()
         self._show_login()
 
     def _set_login_window(self):
@@ -86,7 +88,7 @@ class AppArchivo(tk.Tk):
 
     def _show_pacientes(self):
         self._clear()
-        frame = PacientesFrame(self, self.token, self._show_panel_from_child)
+        frame = PacientesFrame(self, self.token, self._show_panel_from_child, user_role=self.user_role)
         frame.pack(fill='both', expand=True)
 
     def _show_usuarios(self):
@@ -96,7 +98,7 @@ class AppArchivo(tk.Tk):
 
     def _show_citas(self):
         self._clear()
-        frame = CitasFrame(self, self.token, self._show_panel_from_child)
+        frame = CitasFrame(self, self.token, self._show_panel_from_child, user_role=self.user_role)
         frame.pack(fill='both', expand=True)
 
     def _show_historial(self):

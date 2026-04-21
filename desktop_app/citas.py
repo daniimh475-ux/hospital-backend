@@ -30,10 +30,11 @@ AREAS_HOSPITAL = [
 
 
 class CitasFrame(tk.Frame):
-    def __init__(self, master, token, volver_callback=None):
+    def __init__(self, master, token, volver_callback=None, user_role=None):
         super().__init__(master, bg=BG_APP)
         self.token = token
         self.volver_callback = volver_callback
+        self.user_role = user_role
         self._build_ui()
         self._cargar()
 
@@ -127,7 +128,12 @@ class CitasFrame(tk.Frame):
 
     def _fetch(self):
         try:
-            r = requests.get(f"{API_BASE_URL}/citas", headers=self._headers(), timeout=10)
+            # Siempre usar /areas/citas/mi-area excepto para el rol archivo
+            if self.user_role and self.user_role.strip().lower() == "archivo":
+                endpoint = f"{API_BASE_URL}/citas"
+            else:
+                endpoint = f"{API_BASE_URL}/areas/citas/mi-area"
+            r = requests.get(endpoint, headers=self._headers(), timeout=10)
             data = r.json()
             self.after(0, lambda: self._mostrar(data))
         except Exception as e:
@@ -135,14 +141,23 @@ class CitasFrame(tk.Frame):
 
     def _mostrar(self, citas):
         self.tree.delete(*self.tree.get_children())
+        if not isinstance(citas, list):
+            # Si la respuesta no es lista, mostrar el error
+            messagebox.showerror("Error", f"Respuesta inesperada del servidor:\n{citas}")
+            self.status_lbl.config(text="0 citas activas")
+            return
         for c in citas:
-            pid = str(c["paciente_id"]).replace("-", "").upper()
-            expediente = f"HC-{pid[:8]}"
-            self.tree.insert("", "end", values=(
-                expediente,
-                c["fecha"],
-                c["area"],
-            ))
+            try:
+                pid = str(c["paciente_id"]).replace("-", "").upper()
+                expediente = f"HC-{pid[:8]}"
+                self.tree.insert("", "end", values=(
+                    expediente,
+                    c["fecha"],
+                    c["area"],
+                ))
+            except Exception as e:
+                # Si hay un error en un registro, lo ignora y sigue
+                continue
         self.status_lbl.config(text=f"{len(citas)} citas activas")
 
     def _agregar(self):
@@ -275,10 +290,22 @@ class FormCita(tk.Toplevel):
 
     def _guardar(self):
         raw_paciente = self.paciente.get().strip()
-        area = self.area.get().strip()
+        area_nombre = self.area.get().strip()
+        AREAS_UUID = {
+            "Urgencias": "10099803-fcd9-4ed4-875c-5e40e8be5bc7",
+            "Planificacion Familiar": "15b83e19-9907-4cdf-8fd6-6f13272eb933",
+            "Vacunacion": "1b82604f-c775-4944-9b46-cfcb7d739c2d",
+            "Psicologia": "47401029-5323-4e57-9bce-8943d3f71702",
+            "Terapia Fisica": "6cfb8861-8f6d-479c-a9bf-b9cd2bafa58c",
+            "Medicina Familiar": "93349f23-86a6-47d2-98b3-1bcd10222c9e",
+        }
+        area_id = AREAS_UUID.get(area_nombre)
+        if not area_id:
+            messagebox.showerror("Área inválida", "No se pudo resolver el área seleccionada.", parent=self)
+            return
         fecha_hora = self._fecha_hora_seleccionada()
 
-        if not raw_paciente or not area or not fecha_hora:
+        if not raw_paciente or not area_nombre or not fecha_hora:
             messagebox.showwarning("Campos requeridos", "Completa paciente, fecha, hora y área.", parent=self)
             return
 
@@ -295,7 +322,8 @@ class FormCita(tk.Toplevel):
         data = {
             "paciente_id": paciente_id,
             "fecha": fecha_hora.strftime("%Y-%m-%d %H:%M:%S"),
-            "area": area,
+            "area_id": area_id,
+            "area": area_nombre,
         }
 
         self.btn_guardar.config(state="disabled", text="Guardando...")

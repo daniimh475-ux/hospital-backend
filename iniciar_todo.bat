@@ -28,6 +28,18 @@ REM start "Backend" cmd /c "uvicorn backend.main:app --port 8001"
 REM Esperar 5 segundos para que el backend arranque
 ping 127.0.0.1 -n 6 > nul
 
+
+REM Generar el EXE de la app de escritorio (Tkinter)
+REM Puedes comentar esta sección si ya tienes el EXE actualizado
+if exist desktop_app\main.py (
+    echo Generando EXE con PyInstaller...
+    pyinstaller --noconfirm --onefile --windowed desktop_app\main.py
+) else (
+    echo ERROR: No se encontró desktop_app\main.py
+    pause
+    exit /b 1
+)
+
 REM Ejecutar la app de escritorio (main.exe)
 if exist dist\main.exe (
     start /wait dist\main.exe

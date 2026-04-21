@@ -285,6 +285,8 @@ class AreaMedicaFrame(tk.Frame):
         return f"HC-{text[:8]}"
 
     def _render_pacientes(self):
+        if not hasattr(self, "tree") or not self.tree.winfo_exists():
+            return
         self.tree.delete(*self.tree.get_children())
         for p in self.pacientes:
             pid = p.get("id")
@@ -298,7 +300,7 @@ class AreaMedicaFrame(tk.Frame):
                     p.get("sexo", ""),
                     p.get("fecha_nacimiento", ""),
                     "Prioritario" if p.get("prioridad_destino") else "Normal",
-                ),
+                )
             )
 
     def _resolve_paciente(self, raw):
